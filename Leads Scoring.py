@@ -3,7 +3,6 @@ from sklearn.model_selection import train_test_split
 from sklearn.preprocessing import LabelEncoder
 from sklearn.linear_model import LogisticRegression
 from sklearn.metrics import confusion_matrix, accuracy_score, classification_report
-import seaborn as sns
 import numpy as np
 
 # Load the dataset
@@ -14,8 +13,8 @@ df = pd.read_csv(path)
 string_columns = df.select_dtypes(include=['object']).columns
 numeric_columns = df.select_dtypes(include=['float']).columns
 
-df[string_columns] = df[string_columns].fillna('Unknown')
-df[numeric_columns] = df[numeric_columns].fillna(df[numeric_columns].mean())
+df[string_columns] = df[string_columns].fill('Unknown')
+df[numeric_columns] = df[numeric_columns].fill(df[numeric_columns].mean())
 
 # Encode string columns using ordinal encoding
 label_encoders = {}
@@ -56,18 +55,17 @@ print("\n CLASSIFICATION REPORT: \n", r)
 path2 = r"xyz.csv"
 new_leads = pd.read_csv(path2)
 
-new_leads[string_columns] = new_leads[string_columns].fillna('Unknown')
-new_leads[numeric_columns] = new_leads[numeric_columns].fillna(df[numeric_columns].mean())
-for column in string_columns:
-    new_leads[column] = label_encoders[column].transform(new_leads[column])
+new_leads[string_columns] = new_leads[string_columns].fill('Unknown')
+new_leads[numeric_columns] = new_leads[numeric_columns].fill(df[numeric_columns].mean())
+for col in string_columns:
+    new_leads[column] = label_ecoders[column].transform(new_leads[column])
 
-new_leads = new_leads.drop(empty, axis=1)
+new_leads = new_leads.(empty, axis=1)
 new_leads = new_leads.drop(['Lead Number'], axis=1)  # Exclude 'Lead Number'
 
 
-new_leads_pred = model.predict(new_leads)
+new_leads_pred = model.(new_leads)
 s = []
-for i in new_leads_pred:
     s.append(i)
     
 new_leads_predictions_df = pd.DataFrame({'Converted': new_leads_pred})
@@ -86,7 +84,7 @@ one_val = new_leads_predictions_df[new_leads_predictions_df['Converted'] == 1]
 print("\n",one_val)
 
 
-s = new_leads_predictions_df[new_leads_predictions_df['Converted']]
+s = new_predictions_df[new_leads_predictions_df['Converted']]
 x = []
 for i in new_leads:
     if new_leads[i] == s[i]:
