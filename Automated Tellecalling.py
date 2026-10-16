@@ -34,20 +34,31 @@ df = df.drop(columns=empty_columns)
 string_columns = df.select_dtypes(include=["object"]).columns
 numeric_columns = df.select_dtypes(include=["number"]).columns.drop([TARGET, ID_COLUMN], errors="ignore")
 
-df[string_columns] = df[string_columns].fillna("Unknown")
-numeric_means = df[numeric_columns].mean()
-df[numeric_columns] = df[numeric_columns].fillna(numeric_means)
-
-# Encode categorical columns; keep the encoders to apply to new leads
+# Split first, so imputation and encoding are fit on training rows only (no test leakage)
+train_df, test_df = train_test_split(df, test_size=0.2, random_state=42, stratify=df[TARGET])
+numeric_means = train_df[numeric_columns].mean()
 label_encoders = {}
 for column in string_columns:
-    label_encoders[column] = LabelEncoder()
-    df[column] = label_encoders[column].fit_transform(df[column])
+    label_encoders[column] = LabelEncoder().fit(train_df[column].fillna("Unknown"))
+
+
+def preprocess(frame):
+    """Apply the training-fitted imputation and encoding to any frame of leads."""
+    frame = frame.copy()
+    frame[string_columns] = frame[string_columns].fillna("Unknown")
+    frame[numeric_columns] = frame[numeric_columns].fillna(numeric_means)
+    for column in string_columns:
+        classes = label_encoders[column].classes_
+        # Categories never seen in training fall back to "Unknown" if known, else the first class
+        fallback = "Unknown" if "Unknown" in classes else classes[0]
+        frame[column] = frame[column].where(frame[column].isin(classes), fallback)
+        frame[column] = label_encoders[column].transform(frame[column])
+    return frame.drop(columns=[TARGET, ID_COLUMN], errors="ignore")
+
 
 # Train / evaluate
-y = df[TARGET]
-X = df.drop(columns=[TARGET, ID_COLUMN], errors="ignore")
-X_train, X_test, y_train, y_test = train_test_split(X, y, test_size=0.2, random_state=42, stratify=y)
+X_train, y_train = preprocess(train_df), train_df[TARGET]
+X_test, y_test = preprocess(test_df), test_df[TARGET]
 
 model = LogisticRegression(max_iter=1000)
 model.fit(X_train, y_train)
@@ -66,16 +77,7 @@ plt.savefig("confusion_matrix.png", bbox_inches="tight")
 new_leads = pd.read_csv(new_path).drop(columns=empty_columns, errors="ignore")
 lead_ids = new_leads[ID_COLUMN] if ID_COLUMN in new_leads else pd.Series(range(len(new_leads)))
 
-new_leads[string_columns] = new_leads[string_columns].fillna("Unknown")
-new_leads[numeric_columns] = new_leads[numeric_columns].fillna(numeric_means)
-for column in string_columns:
-    known = set(label_encoders[column].classes_)
-    # Unseen categories fall back to "Unknown" if it was seen in training, else the most common class
-    fallback = "Unknown" if "Unknown" in known else label_encoders[column].classes_[0]
-    new_leads[column] = new_leads[column].where(new_leads[column].isin(known), fallback)
-    new_leads[column] = label_encoders[column].transform(new_leads[column])
-
-features = new_leads[X.columns]
+features = preprocess(new_leads)[X_train.columns]
 scored = pd.DataFrame({
     ID_COLUMN: lead_ids,
     "conversion_probability": model.predict_proba(features)[:, 1],
